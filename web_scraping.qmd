@@ -1,0 +1,393 @@
+---
+title: "Web Scraping com R"
+author: "Luís Bernardo Patrício"
+date: "`r Sys.Date()`"
+html_document:
+toc: true
+toc_float: true
+number_sections: true
+---
+
+
+# 1. Objetivo
+
+Este trabalho tem como objetivo realizar um processo de **Web Scraping utilizando a linguagem R**, extraindo informações disponibilizadas dinamicamente pelo site:
+
+https://www.scrapethissite.com/pages/ajax-javascript/
+
+O site apresenta informações sobre filmes relacionados ao Oscar. Os dados são carregados de forma dinâmica utilizando **JavaScript/AJAX**.
+
+Neste trabalho serão coletadas informações referentes aos anos de **2015, 2014, 2013, 2012, 2011 e 2010**.
+
+As informações coletadas serão posteriormente organizadas em uma tabela.
+
+# 2. Instalação dos pacotes
+
+Inicialmente, instalamos os pacotes necessários para realizar a coleta e organização dos dados.
+
+```{r instalar-pacotes, eval=FALSE}
+install.packages("httr2")
+install.packages("jsonlite")
+install.packages("dplyr")
+install.packages("purrr")
+```
+
+# 3. Carregamento dos pacotes
+
+Depois de instalados, os pacotes são carregados:
+
+```{r carregar-pacotes}
+library(httr2)
+library(jsonlite)
+library(dplyr)
+library(purrr)
+```
+
+# 4. Definição do endereço do site
+
+Criamos um objeto chamado `url` contendo o endereço da página que será utilizada.
+
+```{r endereco-site}
+url <- "https://www.scrapethissite.com/pages/ajax-javascript/"
+
+url
+```
+
+O objeto `url` será utilizado posteriormente para realizar as requisições ao site.
+
+# 5. Teste da coleta de um único ano
+
+Antes de coletar todos os anos, decidimos  testar o procedimento utilizando somente o ano de **2015**.
+
+```{r teste-2015}
+ano <- 2015
+
+ano
+```
+
+Agora realizamos uma requisição ao site:
+
+```{r requisicao-2015}
+resposta <- request(url) |>
+  req_url_query(
+    ajax = "true",
+    year = ano
+  ) |>
+  req_perform()
+```
+
+Nesta etapa, o R solicita ao site os dados correspondentes ao ano de 2015.
+
+O parâmetro:
+
+```text
+ajax = "true"
+```
+
+indica que estamos solicitando o conteúdo utilizado pela página através de uma requisição AJAX.
+
+O parâmetro:
+
+```text
+year = 2015
+```
+
+indica o ano desejado.
+
+# 6. Verificação da requisição
+
+Podemos verificar se a requisição foi realizada corretamente.
+
+```{r verificar-status}
+resp_status(resposta)
+```
+
+O código HTTP `200` indica que a requisição foi processada com sucesso.
+
+# 7. Obtenção do conteúdo retornado
+
+Agora transformamos o conteúdo retornado pelo site em texto.
+
+```{r obter-texto}
+texto <- resp_body_string(resposta)
+```
+
+Podemos visualizar o conteúdo utilizando:
+
+```{r visualizar-texto}
+cat(texto)
+```
+
+Essa etapa é importante porque permite verificar quais informações foram retornadas pelo servidor.
+
+# 8. Conversão dos dados JSON
+
+O conteúdo retornado pelo servidor está estruturado em formato JSON.
+
+Utilizamos o pacote `jsonlite` para transformar esse conteúdo em um objeto que possa ser utilizado no R.
+
+```{r converter-json}
+dados_2015 <- fromJSON(texto)
+```
+
+Podemos verificar a estrutura dos dados:
+
+```{r estrutura-dados}
+str(dados_2015)
+```
+
+Também podemos visualizar o objeto:
+
+```{r visualizar-dados}
+dados_2015
+```
+
+# 9. Identificação das informações
+
+Podemos verificar os nomes das informações retornadas:
+
+```{r nomes-dados}
+names(dados_2015)
+```
+
+Caso os dados estejam organizados em uma tabela interna, podemos verificar sua estrutura com:
+
+```{r estrutura-detalhada}
+str(dados_2015)
+```
+
+# 10. Criação de uma função para coleta
+
+Para evitar repetir o mesmo código para cada ano, podemos criar uma função.
+
+A função abaixo recebe um ano e realiza automaticamente todo o processo de requisição e conversão dos dados.
+
+```{r criar-funcao}
+coletar_filmes <- function(ano) {
+  
+  resposta <- request(url) |>
+    req_url_query(
+      ajax = "true",
+      year = ano
+    ) |>
+    req_perform()
+  
+  texto <- resp_body_string(resposta)
+  
+  dados <- fromJSON(texto)
+  
+  return(dados)
+}
+```
+
+Agora podemos utilizar a função informando o ano desejado.
+
+```{r testar-funcao}
+dados_teste <- coletar_filmes(2015)
+
+str(dados_teste)
+```
+
+A vantagem da função é que o mesmo procedimento pode ser utilizado para qualquer ano.
+
+Por exemplo:
+
+```{r exemplo-funcao}
+dados_2014 <- coletar_filmes(2014)
+
+dados_2014
+```
+
+# 11. Definição dos anos
+
+Neste trabalho serão analisados seis anos:
+
+* 2015
+* 2014
+* 2013
+* 2012
+* 2011
+* 2010
+
+Podemos criar um vetor contendo esses anos:
+
+```{r definir-anos}
+anos <- 2015:2010
+
+anos
+```
+
+O resultado será:
+
+```text
+2015 2014 2013 2012 2011 2010
+```
+
+# 12. Coleta dos seis anos
+
+Agora utilizamos a função `map()` do pacote `purrr`.
+
+```{r coletar-seis-anos}
+dados <- map(anos, coletar_filmes)
+```
+
+O comando acima executa automaticamente a função:
+
+```text
+coletar_filmes(2015)
+coletar_filmes(2014)
+coletar_filmes(2013)
+coletar_filmes(2012)
+coletar_filmes(2011)
+coletar_filmes(2010)
+```
+
+Podemos verificar quantos elementos foram coletados:
+
+```{r verificar-coleta}
+length(dados)
+```
+
+O resultado esperado é:
+
+```text
+6
+```
+
+Isso significa que temos uma estrutura contendo os dados dos seis anos solicitados.
+
+Podemos também verificar a estrutura:
+
+```{r estrutura-seis-anos}
+str(dados)
+```
+
+# 13. Organização dos dados em uma tabela
+
+Nesta etapa final, vamos organizar os dados coletados em uma tabela única.
+
+Primeiramente, podemos verificar individualmente o resultado de cada ano.
+
+```{r verificar-ano-2015}
+dados[[1]]
+```
+
+O primeiro elemento corresponde ao ano de 2015.
+
+O segundo corresponde a 2014:
+
+```{r verificar-ano-2014}
+dados[[2]]
+```
+
+O terceiro corresponde a 2013:
+
+```{r verificar-ano-2013}
+dados[[3]]
+```
+
+O quarto corresponde a 2012:
+
+```{r verificar-ano-2012}
+dados[[4]]
+```
+
+O quinto corresponde a 2011:
+
+```{r verificar-ano-2011}
+dados[[5]]
+```
+
+E o sexto corresponde a 2010:
+
+```{r verificar-ano-2010}
+dados[[6]]
+```
+
+## Organização final
+
+Como os dados foram coletados separadamente para cada ano, podemos acrescentar a informação do ano correspondente.
+
+```{r adicionar-anos}
+dados_com_ano <- map2(
+  dados,
+  anos,
+  function(dado, ano) {
+    
+    dado$year <- ano
+    
+    return(dado)
+  }
+)
+```
+
+Agora podemos combinar os resultados em uma única estrutura:
+
+```{r combinar-dados}
+dados_final <- bind_rows(dados_com_ano)
+```
+
+Podemos verificar o resultado:
+
+```{r visualizar-tabela}
+dados_final
+```
+
+Também podemos verificar a estrutura:
+
+```{r estrutura-final}
+str(dados_final)
+```
+
+E os nomes das colunas:
+
+```{r nomes-colunas}
+names(dados_final)
+```
+
+## Seleção das informações principais
+
+Caso os dados estejam organizados nas colunas correspondentes aos filmes, podemos selecionar as informações principais:
+
+```{r selecionar-colunas}
+tabela_final <- dados_final |>
+  select(
+    year,
+    title,
+    nominations,
+    awards,
+    best_picture
+  )
+```
+
+Visualizamos a tabela:
+
+```{r tabela-final}
+tabela_final
+```
+
+## Visualização das primeiras linhas
+
+Para visualizar somente as primeiras observações:
+
+```{r primeiras-linhas}
+head(tabela_final)
+```
+
+## Visualização das últimas linhas
+
+Podemos também visualizar as últimas observações:
+
+```{r ultimas-linhas}
+tail(tabela_final)
+```
+
+## Quantidade de registros
+
+Finalmente, podemos verificar quantas linhas e colunas existem na tabela:
+
+```{r dimensao-tabela}
+dim(tabela_final)
+```
+
+
